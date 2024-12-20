@@ -112,7 +112,7 @@ async def list_all(message: Message):
             response += f"ID: {user.user_id}, Имя: @{user.username}, Вариант: {user.variant_number}\n"
         else:
             response += f"ID: {user.user_id}, Имя: {user.first_name}, Вариант: {user.variant_number}\n"
-    await message.reply(response)
+    await message.reply(response, disable_notification=True)
     session.close()
 
 # Команда для вывода участников своего варианта
@@ -138,7 +138,7 @@ async def list_my_variant(message: Message):
             response += f"ID: {u.user_id}, Имя: @{u.username}\n"
         else:
             response += f"ID: {u.user_id}, Имя: {u.first_name}\n"
-    await message.reply(response)
+    await message.reply(response, disable_notification=True)
     session.close()
 
 async def main():

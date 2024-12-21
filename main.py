@@ -1,8 +1,7 @@
-# bot.py
+# main.py
 import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-from aiogram.types import Message
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from models import Base, User
@@ -29,9 +28,26 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # Создание таблиц (если они еще не созданы)
 Base.metadata.create_all(bind=engine)
 
+# Функция для форматирования имени пользователя с кликабельной ссылкой
+def format_user_link(user: User) -> str:
+    # Формируем полное имя
+    full_name = user.first_name
+    if user.last_name:
+        full_name += f" {user.last_name}"
+    
+    if user.username:
+        # Если есть username, используем ссылку на профиль
+        link = f"https://t.me/{user.username}"
+    else:
+        # Если нет username, используем схему tg://user?id=USER_ID
+        link = f"tg://user?id={user.user_id}"
+    
+    # Возвращаем Markdown-ссылку
+    return f"[{full_name}]({link})"
+
 # Хэндлер на команду /start
 @dp.message(Command(commands=["start"]))
-async def send_welcome(message: Message):
+async def send_welcome(message: types.Message):
     await message.reply("Привет! Я бот для управления вариантами. Используй /help для списка команд.")
     # Добавление пользователя в базу данных, если его еще нет
     session = SessionLocal()
@@ -39,19 +55,22 @@ async def send_welcome(message: Message):
     if not user:
         new_user = User(
             user_id=message.from_user.id,
-            first_name=message.from_user.first_name, # Может быть None
-            last_name=message.from_user.last_name,  # Может быть None
-            username=message.from_user.username,    # Может быть None
-            variant_number=0  # Дефолтное значение
+            first_name=message.from_user.first_name,  # Может быть None
+            last_name=message.from_user.last_name,    # Может быть None
+            username=message.from_user.username,      # Может быть None
+            variant_number=0                           # Дефолтное значение
         )
 
         session.add(new_user)
         session.commit()
+        await message.reply("Вы успешно зарегистрированы!")
+    else:
+        await message.reply("Вы уже зарегистрированы.")
     session.close()
 
 # Хэндлер на команду /help
 @dp.message(Command(commands=["help"]))
-async def help_command(message: Message):
+async def help_command(message: types.Message):
     help_text = (
         "/change_variant - Изменить номер вашего варианта.\n"
         "/list_all - Показать всех участников.\n"
@@ -61,7 +80,7 @@ async def help_command(message: Message):
 
 # Команда для изменения номера варианта
 @dp.message(Command(commands=["change_variant"]))
-async def change_variant(message: Message, command: Command):
+async def change_variant(message: types.Message, command: Command):
     args = command.args
     if not args:
         await message.reply("Пожалуйста, укажите номер варианта. Пример: /change_variant 2")
@@ -70,7 +89,7 @@ async def change_variant(message: Message, command: Command):
         var_num = int(args)
         if var_num < 1 or var_num > 30:
             raise ValueError
-        new_variant = int(args)
+        new_variant = var_num
     except ValueError:
         await message.reply("Неверный формат номера варианта. Пожалуйста, укажите целое число от 1 до 30.")
         return
@@ -85,9 +104,9 @@ async def change_variant(message: Message, command: Command):
         # Создание нового пользователя, если пользователя нет в базе
         new_user = User(
             user_id=message.from_user.id,
-            first_name=message.from_user.first_name, # Может быть None
-            last_name=message.from_user.last_name,  # Может быть None
-            username=message.from_user.username,    # Может быть None
+            first_name=message.from_user.first_name,  # Может быть None
+            last_name=message.from_user.last_name,    # Может быть None
+            username=message.from_user.username,      # Может быть None
             variant_number=new_variant
         )
 
@@ -98,7 +117,7 @@ async def change_variant(message: Message, command: Command):
 
 # Команда для вывода всех участников
 @dp.message(Command(commands=["list_all"]))
-async def list_all(message: Message):
+async def list_all(message: types.Message):
     session = SessionLocal()
     users = session.query(User).all()
     if not users:
@@ -108,16 +127,15 @@ async def list_all(message: Message):
 
     response = "Список всех участников:\n"
     for user in users:
-        if user.username:
-            response += f"ID: {user.user_id}, Имя: @{user.username}, Вариант: {user.variant_number}\n"
-        else:
-            response += f"ID: {user.user_id}, Имя: {user.first_name}, Вариант: {user.variant_number}\n"
-    await message.reply(response, disable_notification=True)
+        user_link = format_user_link(user)
+        response += f"{user_link}, Вариант: {user.variant_number}\n"
+    
+    await message.reply(response, parse_mode=types.ParseMode.MARKDOWN, disable_notification=True)
     session.close()
 
 # Команда для вывода участников своего варианта
 @dp.message(Command(commands=["list_my_variant"]))
-async def list_my_variant(message: Message):
+async def list_my_variant(message: types.Message):
     session = SessionLocal()
     user = session.query(User).filter(User.user_id == message.from_user.id).first()
     if not user:
@@ -134,11 +152,10 @@ async def list_my_variant(message: Message):
 
     response = f"Участники вашего варианта ({variant}):\n"
     for u in users:
-        if u.username:
-            response += f"ID: {u.user_id}, Имя: @{u.username}\n"
-        else:
-            response += f"ID: {u.user_id}, Имя: {u.first_name}\n"
-    await message.reply(response, disable_notification=True)
+        user_link = format_user_link(u)
+        response += f"{user_link}\n"
+    
+    await message.reply(response, parse_mode=types.ParseMode.MARKDOWN, disable_notification=True)
     session.close()
 
 async def main():

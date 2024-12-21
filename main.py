@@ -132,7 +132,7 @@ async def list_all(message: Message):
         user_link = format_user_link(user)
         response += f"{user_link}, Вариант: {user.variant_number}\n"
     
-    await message.answer(response, parse_mode=ParseMode.MARKDOWN, disable_notification=True)
+    await message.answer(response, parse_mode=ParseMode.MARKDOWN, disable_notification=True, disable_web_page_preview=True)
     session.close()
 
 # Команда для вывода участников своего варианта
@@ -157,7 +157,7 @@ async def list_my_variant(message: Message):
         user_link = format_user_link(u)
         response += f"{user_link}\n"
     
-    await message.answer(response, parse_mode=ParseMode.MARKDOWN, disable_notification=True)
+    await message.answer(response, parse_mode=ParseMode.MARKDOWN, disable_notification=True, disable_web_page_preview=True)
     session.close()
 
 async def main():
